@@ -6,9 +6,16 @@ A comprehensive financial tracker with deep YNAB integration, designed to run as
 
 ### Deploy in LXC Container (Recommended)
 
+#### Option 1: GUI Installation (Community Script Style)
 ```bash
-# Download and run the deployment script
-curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/deploy-lxc.sh | bash
+# Interactive GUI installation with colors and progress indicators
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/install-gui.sh)"
+```
+
+#### Option 2: Simple Installation
+```bash
+# Simple one-line installation
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/install.sh)"
 ```
 
 ### Deploy with Docker
