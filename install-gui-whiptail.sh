@@ -223,6 +223,12 @@ install_finance_assistant() {
 
           # Initialize Django
           cd /opt/finance-assistant/backend
+          
+          # Remove problematic migration if it exists
+          if [ -f "ynab/migrations/0002_add_import_id_to_transaction.py" ]; then
+              rm ynab/migrations/0002_add_import_id_to_transaction.py
+          fi
+          
           /opt/finance-assistant/venv/bin/python manage.py migrate
           /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
           /opt/finance-assistant/venv/bin/python populate_data.py
