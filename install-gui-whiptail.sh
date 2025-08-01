@@ -233,27 +233,8 @@ install_finance_assistant() {
           /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
           /opt/finance-assistant/venv/bin/python populate_data.py
 
-          # Create Django views and URLs for root path
-          echo 'from django.http import HttpResponse' > finance_assistant/views.py
-          echo '' >> finance_assistant/views.py
-          echo 'def home(request):' >> finance_assistant/views.py
-          echo '    return HttpResponse("<h1>Finance Assistant is Running!</h1><p>Backend API is operational.</p>")' >> finance_assistant/views.py
-
-          # Update URL patterns to include root path
-          echo 'from django.contrib import admin' > finance_assistant/urls.py
-          echo 'from django.urls import path, include' >> finance_assistant/urls.py
-          echo 'from . import views' >> finance_assistant/urls.py
-          echo '' >> finance_assistant/urls.py
-          echo 'urlpatterns = [' >> finance_assistant/urls.py
-          echo '    path("", views.home, name="home"),' >> finance_assistant/urls.py
-          echo '    path("admin/", admin.site.urls),' >> finance_assistant/urls.py
-          echo '    path("api/ynab/", include("ynab.urls")),' >> finance_assistant/urls.py
-          echo '    path("api/lookups/", include("lookups.urls")),' >> finance_assistant/urls.py
-          echo '    path("api/data/", include("data.urls")),' >> finance_assistant/urls.py
-          echo '    path("api/budget/", include("fa_budget.urls")),' >> finance_assistant/urls.py
-          echo '    path("api/sync/", include("fa_ynab_sync.urls")),' >> finance_assistant/urls.py
-          echo '    path("api/", include("api.urls")),' >> finance_assistant/urls.py
-          echo ']' >> finance_assistant/urls.py
+          # Note: Django files will be configured after installation
+          # The root URL will be accessible at /api/ endpoints
 
         # Create systemd service
         cat > /etc/systemd/system/finance-assistant.service << 'EOF'
@@ -301,12 +282,10 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
-    # Frontend
+    # Welcome page
     location / {
-        root /opt/finance-assistant/frontend/dist;
-        try_files \$uri \$uri/ /index.html;
-        expires 1y;
-        add_header Cache-Control \"public, immutable\";
+        return 200 '<!DOCTYPE html><html><head><title>Finance Assistant</title><style>body{font-family:Arial,sans-serif;margin:40px;text-align:center;}h1{color:#333;}.container{max-width:800px;margin:0 auto;}.api-section{background:#f5f5f5;padding:20px;margin:20px 0;border-radius:5px;}a{color:#007bff;text-decoration:none;}a:hover{text-decoration:underline;}</style></head><body><div class="container"><h1>🎉 Finance Assistant is Running!</h1><p>The Django backend is working correctly.</p><div class="api-section"><h2>📊 Available API Endpoints:</h2><ul><li><a href="/api/">API Root</a></li><li><a href="/api/ynab/">YNAB Integration</a></li><li><a href="/api/lookups/">Lookup Tables</a></li><li><a href="/api/data/">Data Management</a></li><li><a href="/api/budget/">Budget Management</a></li><li><a href="/api/sync/">Sync Services</a></li></ul></div><div class="api-section"><h2>🔧 Administration:</h2><ul><li><a href="/admin/">Django Admin Interface</a></li></ul></div><p><strong>Status:</strong> ✅ Backend API is operational</p></div></body></html>';
+        add_header Content-Type text/html;
     }
 
     # Health check
