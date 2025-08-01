@@ -13,6 +13,7 @@ var_disk="${var_disk:-4}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-12}"
 var_unprivileged="${var_unprivileged:-0}"
+var_install="finance"
 
 header_info "$APP"
 variables
@@ -33,45 +34,55 @@ function update_script() {
   exit
 }
 
-function install_finance_assistant() {
-  msg_info "Installing ${APP} Dependencies"
-  $STD apt-get update -qq &>/dev/null
-  $STD apt-get install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx supervisor &>/dev/null
 
-  msg_info "Creating Finance Assistant User"
-  $STD useradd -m -s /bin/bash finance &>/dev/null
 
-  msg_info "Creating Application Directory"
-  $STD mkdir -p /opt/finance-assistant
-  $STD chown finance:finance /opt/finance-assistant
+start
+build_container
 
-  msg_info "Cloning Repository"
-  $STD cd /opt/finance-assistant
-  $STD git clone https://github.com/chbarnhouse/finance-assistant.git temp &>/dev/null
-  $STD cp -r temp/backend ./
-  $STD cp -r temp/frontend ./
-  $STD rm -rf temp
-  $STD chown -R finance:finance /opt/finance-assistant
+# Override the default installation behavior
+msg_info "Installing Finance Assistant"
+lxc-attach -n "$CTID" -- bash -c "$(cat << 'EOF'
+#!/usr/bin/env bash
+set -e
 
-  msg_info "Setting up Python Environment"
-  $STD cd /opt/finance-assistant
-  $STD sudo -u finance python3 -m venv venv &>/dev/null
-  $STD sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip &>/dev/null
-  $STD sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter &>/dev/null
+# Install dependencies
+apt-get update -qq >/dev/null
+apt-get install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx supervisor >/dev/null
 
-  msg_info "Building Frontend"
-  $STD cd /opt/finance-assistant/frontend
-  $STD sudo -u finance npm install &>/dev/null
-  $STD sudo -u finance npm run build &>/dev/null
+# Create finance user
+useradd -m -s /bin/bash finance >/dev/null
 
-  msg_info "Initializing Django"
-  $STD cd /opt/finance-assistant/backend
-  $STD sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate &>/dev/null
-  $STD sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input &>/dev/null
-  $STD sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py &>/dev/null
+# Create application directory
+mkdir -p /opt/finance-assistant
+chown finance:finance /opt/finance-assistant
 
-  msg_info "Creating Systemd Service"
-  cat > /etc/systemd/system/finance-assistant.service << 'EOF'
+# Clone repository
+cd /opt/finance-assistant
+git clone https://github.com/chbarnhouse/finance-assistant.git temp >/dev/null
+cp -r temp/backend ./
+cp -r temp/frontend ./
+rm -rf temp
+chown -R finance:finance /opt/finance-assistant
+
+# Set up Python environment
+cd /opt/finance-assistant
+sudo -u finance python3 -m venv venv >/dev/null
+sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip >/dev/null
+sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter >/dev/null
+
+# Build frontend
+cd /opt/finance-assistant/frontend
+sudo -u finance npm install >/dev/null
+sudo -u finance npm run build >/dev/null
+
+# Initialize Django
+cd /opt/finance-assistant/backend
+sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate >/dev/null
+sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input >/dev/null
+sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py >/dev/null
+
+# Create systemd service
+cat > /etc/systemd/system/finance-assistant.service << 'SERVICE_EOF'
 [Unit]
 Description=Finance Assistant
 After=network.target
@@ -87,10 +98,10 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SERVICE_EOF
 
-  msg_info "Configuring Nginx"
-  cat > /etc/nginx/sites-available/finance-assistant << 'EOF'
+# Configure Nginx
+cat > /etc/nginx/sites-available/finance-assistant << 'NGINX_EOF'
 server {
     listen 8080 default_server;
     server_name _;
@@ -130,25 +141,25 @@ server {
         return 200 'healthy\n';
     }
 }
+NGINX_EOF
+
+# Enable services
+rm -f /etc/nginx/sites-enabled/default
+ln -s /etc/nginx/sites-available/finance-assistant /etc/nginx/sites-enabled/
+systemctl daemon-reload
+systemctl enable finance-assistant
+systemctl start finance-assistant
+systemctl enable nginx
+systemctl start nginx
+
+# Configure firewall
+ufw allow 8080/tcp >/dev/null
+ufw --force enable >/dev/null
+
+echo "Finance Assistant installation completed successfully!"
 EOF
+)" $?
 
-  msg_info "Enabling Services"
-  $STD rm -f /etc/nginx/sites-enabled/default
-  $STD ln -s /etc/nginx/sites-available/finance-assistant /etc/nginx/sites-enabled/
-  $STD systemctl daemon-reload
-  $STD systemctl enable finance-assistant
-  $STD systemctl start finance-assistant
-  $STD systemctl enable nginx
-  $STD systemctl start nginx
-
-  msg_info "Configuring Firewall"
-  $STD ufw allow 8080/tcp &>/dev/null
-  $STD ufw --force enable &>/dev/null
-}
-
-start
-build_container
-install_finance_assistant
 description
 
 msg_ok "Completed Successfully!\n"
