@@ -67,20 +67,15 @@ check_storage() {
         exit 1
     fi
 
-        # Try different parsing methods - preserve decimal points
-    AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $3}' | sed 's/G//' | sed 's/[^0-9.]//g')
+            # Parse available space from pvesm status output
+    # Format: Storage Type Total Used Available Used%
+    AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $5}' | sed 's/G//' | sed 's/[^0-9.]//g')
     echo "DEBUG: Parsed available space: $AVAILABLE" >&2
-
-    # If that didn't work, try parsing the 4th column (sometimes it's there)
+    
+    # If that didn't work, try parsing the 3rd column (Total)
     if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
-        AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $4}' | sed 's/G//' | sed 's/[^0-9.]//g')
-        echo "DEBUG: Trying 4th column, got: $AVAILABLE" >&2
-    fi
-
-    # If still no luck, try to extract any number followed by G
-    if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
-        AVAILABLE=$(echo "$STORAGE_INFO" | grep -o '[0-9.]*G' | head -1 | sed 's/G//')
-        echo "DEBUG: Trying regex extraction, got: $AVAILABLE" >&2
+        AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $3}' | sed 's/G//' | sed 's/[^0-9.]//g')
+        echo "DEBUG: Trying 3rd column (Total), got: $AVAILABLE" >&2
     fi
 
     # Debug: show what we found
@@ -215,7 +210,7 @@ install_finance_assistant() {
           cd /opt/finance-assistant
           python3 -m venv venv
           /opt/finance-assistant/venv/bin/pip install --upgrade pip
-          /opt/finance-assistant/venv/bin/pip install "gunicorn<21.0" django djangorestframework django-cors-headers django-filter
+          /opt/finance-assistant/venv/bin/pip install 'gunicorn<21.0' django djangorestframework django-cors-headers django-filter
 
           # Build frontend
           cd /opt/finance-assistant/frontend
@@ -225,7 +220,7 @@ install_finance_assistant() {
           # Create data directory and set permissions
           mkdir -p /data
           chown finance:finance /data
-          
+
           # Initialize Django
           cd /opt/finance-assistant/backend
           /opt/finance-assistant/venv/bin/python manage.py migrate
@@ -303,9 +298,11 @@ EOF
         systemctl enable nginx
         systemctl start nginx
 
-        # Configure firewall
-        ufw allow 8080/tcp
-        ufw --force enable
+                  # Configure firewall (skip if ufw not available)
+          if command -v ufw >/dev/null 2>&1; then
+              ufw allow 8080/tcp
+              ufw --force enable
+          fi
     "
 }
 
