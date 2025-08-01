@@ -72,11 +72,13 @@ finance-assistant-standalone/
 Once your repository is created, you can deploy using:
 
 ### **LXC Container (Recommended)**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/finance-assistant-standalone/main/deploy-lxc.sh | bash
 ```
 
 ### **Docker**
+
 ```bash
 git clone https://github.com/YOUR_USERNAME/finance-assistant-standalone.git
 cd finance-assistant-standalone
@@ -93,4 +95,4 @@ cp env.example .env
 4. Test the deployment in your LXC container
 5. Share the repository with others
 
-Your standalone Finance Assistant will be ready for deployment anywhere! 🎉 
+Your standalone Finance Assistant will be ready for deployment anywhere! 🎉

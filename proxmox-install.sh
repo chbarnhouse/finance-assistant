@@ -79,34 +79,34 @@ get_user_input() {
     print_status "Finance Assistant LXC Container Setup"
     echo "=========================================="
     echo ""
-    
+
     read -p "Container ID (default: $CTID): " input_ctid
     CTID=${input_ctid:-$CTID}
-    
+
     read -p "Hostname (default: $HOSTNAME): " input_hostname
     HOSTNAME=${input_hostname:-$HOSTNAME}
-    
+
     read -p "IP Address (default: $IP): " input_ip
     IP=${input_ip:-$IP}
-    
+
     read -p "Gateway (default: $GATEWAY): " input_gateway
     GATEWAY=${input_gateway:-$GATEWAY}
-    
+
     read -p "Storage (default: $STORAGE): " input_storage
     STORAGE=${input_storage:-$STORAGE}
-    
+
     read -p "CPU Cores (default: $CORES): " input_cores
     CORES=${input_cores:-$CORES}
-    
+
     read -p "Memory in MB (default: $MEMORY): " input_memory
     MEMORY=${input_memory:-$MEMORY}
-    
+
     read -p "Swap in MB (default: $SWAP): " input_swap
     SWAP=${input_swap:-$SWAP}
-    
+
     read -p "Disk Size in GB (default: $DISK_SIZE): " input_disk
     DISK_SIZE=${input_disk:-$DISK_SIZE}
-    
+
     echo ""
     print_status "Configuration Summary:"
     echo "  Container ID: $CTID"
@@ -119,7 +119,7 @@ get_user_input() {
     echo "  Swap: ${SWAP}MB"
     echo "  Disk Size: ${DISK_SIZE}GB"
     echo ""
-    
+
     read -p "Proceed with installation? (y/N): " confirm
     if [[ ! $confirm =~ ^[Yy]$ ]]; then
         print_status "Installation cancelled."
@@ -130,7 +130,7 @@ get_user_input() {
 # Function to create LXC container
 create_container() {
     print_status "Creating LXC container..."
-    
+
     # Create the container
     pct create $CTID local:vztmpl/$TEMPLATE-$TEMPLATE_VERSION\_amd64.tar.zst \
         --hostname $HOSTNAME \
@@ -142,7 +142,7 @@ create_container() {
         --features nesting=1 \
         --unprivileged 1 \
         --start 1
-    
+
     print_success "Container created and started successfully!"
 }
 
@@ -150,38 +150,38 @@ create_container() {
 wait_for_container() {
     print_status "Waiting for container to be ready..."
     sleep 10
-    
+
     # Wait for container to be running
     while ! pct status $CTID | grep -q "running"; do
         print_status "Waiting for container to start..."
         sleep 5
     done
-    
+
     print_success "Container is running!"
 }
 
 # Function to install dependencies in container
 install_dependencies() {
     print_status "Installing dependencies in container..."
-    
+
     # Update package list and install basic tools
     pct exec $CTID -- bash -c "
         apt update && apt upgrade -y
         apt install -y curl wget git python3 python3-pip python3-venv nginx nodejs npm supervisor sqlite3
     "
-    
+
     print_success "Dependencies installed!"
 }
 
 # Function to deploy Finance Assistant
 deploy_finance_assistant() {
     print_status "Deploying Finance Assistant..."
-    
+
     # Download and run the deployment script
     pct exec $CTID -- bash -c "
         curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/deploy-lxc.sh | bash
     "
-    
+
     print_success "Finance Assistant deployed successfully!"
 }
 
@@ -241,4 +241,4 @@ main() {
 }
 
 # Run main function
-main "$@" 
+main "$@"
