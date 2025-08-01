@@ -215,12 +215,16 @@ install_finance_assistant() {
           cd /opt/finance-assistant
           python3 -m venv venv
           /opt/finance-assistant/venv/bin/pip install --upgrade pip
-          /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter
-          
+          /opt/finance-assistant/venv/bin/pip install "gunicorn<21.0" django djangorestframework django-cors-headers django-filter
+
           # Build frontend
           cd /opt/finance-assistant/frontend
           npm install
           npm run build
+
+          # Create data directory and set permissions
+          mkdir -p /data
+          chown finance:finance /data
           
           # Initialize Django
           cd /opt/finance-assistant/backend
