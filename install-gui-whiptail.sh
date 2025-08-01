@@ -51,28 +51,48 @@ check_root() {
 
 # Function to check storage
 check_storage() {
+    # Debug: Show all storage info first
+    echo "DEBUG: All storage pools:" >&2
+    pvesm status >&2
+    
     # Get available space properly - debug the command first
     STORAGE_INFO=$(pvesm status | grep "$STORAGE")
+    echo "DEBUG: Storage info for '$STORAGE': $STORAGE_INFO" >&2
     
     if [[ -z "$STORAGE_INFO" ]]; then
         whiptail --backtitle "Proxmox VE Helper Scripts" \
             --title "Storage Error" \
-            --msgbox "Storage pool '$STORAGE' not found or not accessible\n\nAvailable storage pools:\n$(pvesm status | grep -v "local" | awk '{print "  " $1}')" \
+            --msgbox "Storage pool '$STORAGE' not found or not accessible\n\nAvailable storage pools:\n$(pvesm status | awk '{print "  " $1}')" \
             12 70
         exit 1
     fi
     
-    # Parse available space more carefully
+    # Try different parsing methods
     AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $3}' | sed 's/G//' | sed 's/[^0-9]//g')
+    echo "DEBUG: Parsed available space: $AVAILABLE" >&2
+    
+    # If that didn't work, try parsing the 4th column (sometimes it's there)
+    if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
+        AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $4}' | sed 's/G//' | sed 's/[^0-9]//g')
+        echo "DEBUG: Trying 4th column, got: $AVAILABLE" >&2
+    fi
+    
+    # If still no luck, try to extract any number followed by G
+    if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
+        AVAILABLE=$(echo "$STORAGE_INFO" | grep -o '[0-9]*G' | head -1 | sed 's/G//')
+        echo "DEBUG: Trying regex extraction, got: $AVAILABLE" >&2
+    fi
     
     # Debug: show what we found
     if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
         whiptail --backtitle "Proxmox VE Helper Scripts" \
             --title "Storage Error" \
-            --msgbox "Could not determine available space for storage pool '$STORAGE'\n\nStorage info: $STORAGE_INFO" \
-            10 70
+            --msgbox "Could not determine available space for storage pool '$STORAGE'\n\nStorage info: $STORAGE_INFO\n\nFull pvesm status:\n$(pvesm status)" \
+            15 80
         exit 1
     fi
+    
+    echo "DEBUG: Final available space: ${AVAILABLE}GB" >&2
     
     if [[ $AVAILABLE -lt $DISK_SIZE ]]; then
         if ! whiptail --backtitle "Proxmox VE Helper Scripts" \
