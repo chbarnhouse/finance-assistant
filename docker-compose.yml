@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  finance-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile.standalone
+    container_name: finance-assistant
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /opt/finance-assistant/data:/app/data
+      - /opt/finance-assistant/logs:/app/logs
+    environment:
+      - DEBUG=False
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-this}
+      - YNAB_API_KEY=${YNAB_API_KEY:-}
+      - YNAB_BUDGET_ID=${YNAB_BUDGET_ID:-}
+      - API_KEY=${API_KEY:-your-api-key-for-home-assistant}
+      - ALLOWED_HOSTS=*
+      - DATABASE_PATH=/app/data/finance_assistant.db
+    networks:
+      - finance-network
+
+networks:
+  finance-network:
+    driver: bridge 
