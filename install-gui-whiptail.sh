@@ -234,10 +234,10 @@ install_finance_assistant() {
           /opt/finance-assistant/venv/bin/python populate_data.py
 
           # Create Django views and URLs for root path
-          echo 'from django.http import HttpResponse; def home(request): return HttpResponse("<h1>Finance Assistant is Running!</h1><p>Backend API is operational.</p>")' > finance_assistant/views.py
+          printf "from django.http import HttpResponse\n\ndef home(request):\n    return HttpResponse('<h1>Finance Assistant is Running!</h1><p>Backend API is operational.</p>')\n" > finance_assistant/views.py
 
           # Update URL patterns to include root path
-          echo 'from django.contrib import admin; from django.urls import path, include; from . import views; urlpatterns = [path("", views.home, name="home"), path("admin/", admin.site.urls), path("api/ynab/", include("ynab.urls")), path("api/lookups/", include("lookups.urls")), path("api/data/", include("data.urls")), path("api/budget/", include("fa_budget.urls")), path("api/sync/", include("fa_ynab_sync.urls")), path("api/", include("api.urls"))]' > finance_assistant/urls.py
+          printf "from django.contrib import admin\nfrom django.urls import path, include\nfrom . import views\n\nurlpatterns = [\n    path('', views.home, name='home'),\n    path('admin/', admin.site.urls),\n    path('api/ynab/', include('ynab.urls')),\n    path('api/lookups/', include('lookups.urls')),\n    path('api/data/', include('data.urls')),\n    path('api/budget/', include('fa_budget.urls')),\n    path('api/sync/', include('fa_ynab_sync.urls')),\n    path('api/', include('api.urls')),\n]\n" > finance_assistant/urls.py
 
         # Create systemd service
         cat > /etc/systemd/system/finance-assistant.service << 'EOF'
