@@ -33,7 +33,7 @@ IP="192.168.1.150/24"
 GATEWAY="192.168.1.1"
 CORES=2
 MEMORY=2048
-DISK_SIZE="8G"
+DISK_SIZE="8"
 STORAGE="local-lvm"
 OS_TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
 
@@ -42,6 +42,26 @@ if [[ $EUID -ne 0 ]]; then
    echo -e "${RD}This script must be run as root${CL}"
    exit 1
 fi
+
+# Check available storage
+check_storage() {
+    msg_info "Checking available storage..."
+    if ! pvesm status | grep -q "$STORAGE"; then
+        msg_error "Storage '$STORAGE' not found!"
+        echo -e "${BL}Available storage pools:${CL}"
+        pvesm status | grep -v "storage" | awk '{print "  " $1}'
+        exit 1
+    fi
+    
+    # Get available space
+    AVAILABLE_SPACE=$(pvesm status | grep "$STORAGE" | awk '{print $3}' | sed 's/[^0-9]//g')
+    if [[ "$AVAILABLE_SPACE" -lt "$DISK_SIZE" ]]; then
+        msg_error "Not enough space in $STORAGE. Available: ${AVAILABLE_SPACE}GB, Required: ${DISK_SIZE}GB"
+        exit 1
+    fi
+    
+    msg_ok "Storage check passed. Available: ${AVAILABLE_SPACE}GB"
+}
 
 # Check if CTID is already in use
 if pct list | grep -q "^$CTID "; then
@@ -102,7 +122,7 @@ show_config() {
     echo -e "${TAB}${BL}Storage:${CL} $STORAGE"
     echo -e "${TAB}${BL}CPU Cores:${CL} $CORES"
     echo -e "${TAB}${BL}Memory:${CL} ${MEMORY}MB"
-    echo -e "${TAB}${BL}Disk Size:${CL} $DISK_SIZE"
+    echo -e "${TAB}${BL}Disk Size:${CL} ${DISK_SIZE}GB"
     echo
 }
 
@@ -128,10 +148,19 @@ create_container() {
         --rootfs $STORAGE:$DISK_SIZE \
         --net0 name=eth0,bridge=vmbr0,ip=$IP,gw=$GATEWAY \
         --unprivileged 0 \
-        --features nesting=1; then
+        --features nesting=1 2>&1; then
         msg_ok "Container created successfully!"
     else
         msg_error "Failed to create container!"
+        echo -e "${BL}Error details:${CL}"
+        pct create $CTID $OS_TEMPLATE \
+            --hostname $HOSTNAME \
+            --memory $MEMORY \
+            --cores $CORES \
+            --rootfs $STORAGE:$DISK_SIZE \
+            --net0 name=eth0,bridge=vmbr0,ip=$IP,gw=$GATEWAY \
+            --unprivileged 0 \
+            --features nesting=1
         exit 1
     fi
 }
@@ -145,7 +174,7 @@ start_container() {
         msg_error "Failed to start container!"
         exit 1
     fi
-    
+
     # Wait for container to be ready
     msg_info "Waiting for container to be ready..."
     sleep 10
@@ -154,47 +183,47 @@ start_container() {
 # Install Finance Assistant
 install_finance_assistant() {
     msg_info "Installing Finance Assistant..."
-    
+
     # Update system
     pct exec $CTID -- apt update -qq &>/dev/null
     pct exec $CTID -- apt upgrade -y &>/dev/null
-    
+
     # Install dependencies
     msg_info "Installing dependencies..."
     pct exec $CTID -- apt install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx supervisor &>/dev/null
-    
+
     # Create finance user
     msg_info "Creating finance user..."
     pct exec $CTID -- useradd -m -s /bin/bash finance &>/dev/null
-    
+
     # Create application directory
     msg_info "Creating application directory..."
     pct exec $CTID -- mkdir -p /opt/finance-assistant
     pct exec $CTID -- chown finance:finance /opt/finance-assistant
-    
+
     # Clone repository
     msg_info "Cloning repository..."
     pct exec $CTID -- bash -c "cd /opt/finance-assistant && git clone https://github.com/chbarnhouse/finance-assistant.git temp &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant && cp -r temp/backend ./ && cp -r temp/frontend ./ && rm -rf temp"
     pct exec $CTID -- chown -R finance:finance /opt/finance-assistant
-    
+
     # Set up Python environment
     msg_info "Setting up Python environment..."
     pct exec $CTID -- bash -c "cd /opt/finance-assistant && sudo -u finance python3 -m venv venv &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant && sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant && sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter &>/dev/null"
-    
+
     # Build frontend
     msg_info "Building frontend..."
     pct exec $CTID -- bash -c "cd /opt/finance-assistant/frontend && sudo -u finance npm install &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant/frontend && sudo -u finance npm run build &>/dev/null"
-    
+
     # Initialize Django
     msg_info "Initializing Django..."
     pct exec $CTID -- bash -c "cd /opt/finance-assistant/backend && sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant/backend && sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input &>/dev/null"
     pct exec $CTID -- bash -c "cd /opt/finance-assistant/backend && sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py &>/dev/null"
-    
+
     # Create systemd service
     msg_info "Creating systemd service..."
     pct exec $CTID -- bash -c 'cat > /etc/systemd/system/finance-assistant.service << "EOF"
@@ -214,7 +243,7 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 EOF'
-    
+
     # Configure Nginx
     msg_info "Configuring Nginx..."
     pct exec $CTID -- bash -c 'cat > /etc/nginx/sites-available/finance-assistant << "EOF"
@@ -258,7 +287,7 @@ server {
     }
 }
 EOF'
-    
+
     # Enable services
     msg_info "Enabling services..."
     pct exec $CTID -- rm -f /etc/nginx/sites-enabled/default
@@ -268,12 +297,12 @@ EOF'
     pct exec $CTID -- systemctl start finance-assistant
     pct exec $CTID -- systemctl enable nginx
     pct exec $CTID -- systemctl start nginx
-    
+
     # Configure firewall
     msg_info "Configuring firewall..."
     pct exec $CTID -- ufw allow 8080/tcp &>/dev/null
     pct exec $CTID -- ufw --force enable &>/dev/null
-    
+
     msg_ok "Finance Assistant installation completed!"
 }
 
@@ -281,12 +310,13 @@ EOF'
 main() {
     header_info
     show_config
+    check_storage
     confirm_installation
     
     create_container
     start_container
     install_finance_assistant
-    
+
     # Success message
     echo
     echo -e "${GN}╔══════════════════════════════════════════════════════════════╗${CL}"
