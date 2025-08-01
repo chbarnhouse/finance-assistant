@@ -8,15 +8,15 @@ A comprehensive financial tracker with deep YNAB integration, designed to run as
 
 ```bash
 # Download and run the deployment script
-curl -fsSL https://raw.githubusercontent.com/your-username/finance-assistant-standalone/main/deploy-lxc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/deploy-lxc.sh | bash
 ```
 
 ### Deploy with Docker
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/finance-assistant-standalone.git
-cd finance-assistant-standalone
+git clone https://github.com/chbarnhouse/finance-assistant.git
+cd finance-assistant
 
 # Configure environment
 cp env.example .env
