@@ -211,22 +211,22 @@ install_finance_assistant() {
         rm -rf temp
         chown -R finance:finance /opt/finance-assistant
 
-        # Set up Python environment
-        cd /opt/finance-assistant
-        sudo -u finance python3 -m venv venv
-        sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip
-        sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter
-
-        # Build frontend
-        cd /opt/finance-assistant/frontend
-        sudo -u finance npm install
-        sudo -u finance npm run build
-
-        # Initialize Django
-        cd /opt/finance-assistant/backend
-        sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate
-        sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
-        sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py
+                  # Set up Python environment
+          cd /opt/finance-assistant
+          python3 -m venv venv
+          /opt/finance-assistant/venv/bin/pip install --upgrade pip
+          /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter
+          
+          # Build frontend
+          cd /opt/finance-assistant/frontend
+          npm install
+          npm run build
+          
+          # Initialize Django
+          cd /opt/finance-assistant/backend
+          /opt/finance-assistant/venv/bin/python manage.py migrate
+          /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
+          /opt/finance-assistant/venv/bin/python populate_data.py
 
         # Create systemd service
         cat > /etc/systemd/system/finance-assistant.service << 'EOF'
