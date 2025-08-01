@@ -71,7 +71,7 @@ check_storage() {
     # Format: Storage Type Total Used Available Used%
     AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $5}' | sed 's/G//' | sed 's/[^0-9.]//g')
     echo "DEBUG: Parsed available space: $AVAILABLE" >&2
-    
+
     # If that didn't work, try parsing the 3rd column (Total)
     if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
         AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $3}' | sed 's/G//' | sed 's/[^0-9.]//g')
@@ -210,7 +210,7 @@ install_finance_assistant() {
           cd /opt/finance-assistant
           python3 -m venv venv
           /opt/finance-assistant/venv/bin/pip install --upgrade pip
-          /opt/finance-assistant/venv/bin/pip install 'gunicorn<21.0' django djangorestframework django-cors-headers django-filter
+          /opt/finance-assistant/venv/bin/pip install 'gunicorn<21.0' django djangorestframework django-cors-headers django-filter requests
 
           # Build frontend
           cd /opt/finance-assistant/frontend
