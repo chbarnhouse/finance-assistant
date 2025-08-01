@@ -13,7 +13,7 @@ var_disk="${var_disk:-4}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-12}"
 var_unprivileged="${var_unprivileged:-0}"
-var_install="finance"
+var_install=""
 
 header_info "$APP"
 variables
@@ -34,14 +34,10 @@ function update_script() {
   exit
 }
 
-
-
-start
-build_container
-
-# Override the default installation behavior
-msg_info "Installing Finance Assistant"
-lxc-attach -n "$CTID" -- bash -c "$(cat << 'EOF'
+# Override the framework's installation function
+function install_script() {
+  msg_info "Installing Finance Assistant"
+  lxc-attach -n "$CTID" -- bash -c "$(cat << 'EOF'
 #!/usr/bin/env bash
 set -e
 
@@ -159,7 +155,13 @@ ufw --force enable >/dev/null
 echo "Finance Assistant installation completed successfully!"
 EOF
 )" $?
+}
 
+
+
+start
+build_container
+install_script
 description
 
 msg_ok "Completed Successfully!\n"
