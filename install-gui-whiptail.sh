@@ -51,14 +51,26 @@ check_root() {
 
 # Function to check storage
 check_storage() {
-    # Get available space properly
-    AVAILABLE=$(pvesm status | grep "$STORAGE" | awk '{print $3}' | sed 's/G//')
+    # Get available space properly - debug the command first
+    STORAGE_INFO=$(pvesm status | grep "$STORAGE")
     
-    if [[ -z "$AVAILABLE" ]]; then
+    if [[ -z "$STORAGE_INFO" ]]; then
         whiptail --backtitle "Proxmox VE Helper Scripts" \
             --title "Storage Error" \
-            --msgbox "Storage pool '$STORAGE' not found or not accessible" \
-            8 60
+            --msgbox "Storage pool '$STORAGE' not found or not accessible\n\nAvailable storage pools:\n$(pvesm status | grep -v "local" | awk '{print "  " $1}')" \
+            12 70
+        exit 1
+    fi
+    
+    # Parse available space more carefully
+    AVAILABLE=$(echo "$STORAGE_INFO" | awk '{print $3}' | sed 's/G//' | sed 's/[^0-9]//g')
+    
+    # Debug: show what we found
+    if [[ -z "$AVAILABLE" ]] || [[ "$AVAILABLE" == "0" ]]; then
+        whiptail --backtitle "Proxmox VE Helper Scripts" \
+            --title "Storage Error" \
+            --msgbox "Could not determine available space for storage pool '$STORAGE'\n\nStorage info: $STORAGE_INFO" \
+            10 70
         exit 1
     fi
     
@@ -114,7 +126,7 @@ create_container() {
         --title "Creating Container" \
         --infobox "Creating LXC container..." \
         8 50
-    
+
     pct create $CTID local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst \
         --hostname $HOSTNAME \
         --memory $MEMORY \
@@ -132,16 +144,16 @@ start_container() {
         --title "Starting Container" \
         --infobox "Starting container..." \
         8 50
-    
+
     pct start $CTID
     sleep 10
-    
+
     # Wait for network
     whiptail --backtitle "Proxmox VE Helper Scripts" \
         --title "Waiting for Network" \
         --infobox "Waiting for network..." \
         8 50
-    
+
     for i in {1..30}; do
         if pct exec $CTID -- ping -c 1 8.8.8.8 >/dev/null 2>&1; then
             break
@@ -156,21 +168,21 @@ install_finance_assistant() {
         --title "Installing Finance Assistant" \
         --infobox "Installing Finance Assistant...\nThis may take several minutes." \
         10 60
-    
+
     pct exec $CTID -- bash -c "
         # Update system
         apt update && apt upgrade -y
-        
+
         # Install dependencies
         apt install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx supervisor
-        
+
         # Create finance user
         useradd -m -s /bin/bash finance
-        
+
         # Create application directory
         mkdir -p /opt/finance-assistant
         chown finance:finance /opt/finance-assistant
-        
+
         # Clone repository
         cd /opt/finance-assistant
         git clone https://github.com/chbarnhouse/finance-assistant.git temp
@@ -178,24 +190,24 @@ install_finance_assistant() {
         cp -r temp/frontend ./
         rm -rf temp
         chown -R finance:finance /opt/finance-assistant
-        
+
         # Set up Python environment
         cd /opt/finance-assistant
         sudo -u finance python3 -m venv venv
         sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip
         sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter
-        
+
         # Build frontend
         cd /opt/finance-assistant/frontend
         sudo -u finance npm install
         sudo -u finance npm run build
-        
+
         # Initialize Django
         cd /opt/finance-assistant/backend
         sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate
         sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
         sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py
-        
+
         # Create systemd service
         cat > /etc/systemd/system/finance-assistant.service << 'EOF'
 [Unit]
@@ -266,7 +278,7 @@ EOF
         systemctl start finance-assistant
         systemctl enable nginx
         systemctl start nginx
-        
+
         # Configure firewall
         ufw allow 8080/tcp
         ufw --force enable
@@ -303,7 +315,7 @@ main() {
     check_storage
     check_ctid
     show_config
-    
+
     create_container
     start_container
     install_finance_assistant
@@ -311,4 +323,4 @@ main() {
 }
 
 # Run main function
-main "$@" 
+main "$@"
