@@ -284,8 +284,8 @@ server {
 
     # Welcome page
     location / {
-        return 200 '<!DOCTYPE html><html><head><title>Finance Assistant</title><style>body{font-family:Arial,sans-serif;margin:40px;text-align:center;}h1{color:#333;}.container{max-width:800px;margin:0 auto;}.api-section{background:#f5f5f5;padding:20px;margin:20px 0;border-radius:5px;}a{color:#007bff;text-decoration:none;}a:hover{text-decoration:underline;}</style></head><body><div class="container"><h1>🎉 Finance Assistant is Running!</h1><p>The Django backend is working correctly.</p><div class="api-section"><h2>📊 Available API Endpoints:</h2><ul><li><a href="/api/">API Root</a></li><li><a href="/api/ynab/">YNAB Integration</a></li><li><a href="/api/lookups/">Lookup Tables</a></li><li><a href="/api/data/">Data Management</a></li><li><a href="/api/budget/">Budget Management</a></li><li><a href="/api/sync/">Sync Services</a></li></ul></div><div class="api-section"><h2>🔧 Administration:</h2><ul><li><a href="/admin/">Django Admin Interface</a></li></ul></div><p><strong>Status:</strong> ✅ Backend API is operational</p></div></body></html>';
-        add_header Content-Type text/html;
+        return 200 "Finance Assistant is Running! Backend API is operational. Visit /api/ for endpoints.";
+        add_header Content-Type text/plain;
     }
 
     # Health check
