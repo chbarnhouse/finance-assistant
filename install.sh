@@ -58,6 +58,9 @@ function description() {
   msg_info "It provides a modern web interface with powerful financial insights."
 }
 
+# Ensure CTID is set before calling start
+export CTID=""
+
 start
 build_container
 description
