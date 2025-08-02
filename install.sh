@@ -65,7 +65,7 @@ description
 # After the container is built, install Finance Assistant
 if [[ -n "$CTID" ]]; then
   msg_info "Installing Finance Assistant inside container $CTID..."
-  
+
   # Create the installation script content
   INSTALL_SCRIPT='#!/bin/bash
 
