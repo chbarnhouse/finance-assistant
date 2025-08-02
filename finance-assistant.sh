@@ -72,18 +72,24 @@ MEMORY=2048
 SWAP=2048
 DISK_SIZE=8
 
+# Check available storage and set default
+AVAILABLE_STORAGE=$(pvesm status | grep -E "(local-lvm|local)" | head -1 | awk '{print $1}')
+if [ -n "$AVAILABLE_STORAGE" ]; then
+    STORAGE="$AVAILABLE_STORAGE"
+fi
+
 # Show header
 header_info
 
 # Get container ID
 while true; do
     CTID=$(whiptail --backtitle "Finance Assistant Installation" --title "Container ID" --inputbox "Enter container ID (100-999):" 8 50 "$CTID" 3>&1 1>&2 2>&3)
-    
+
     if [ $? -ne 0 ]; then
         msg_info "Installation cancelled."
         exit 0
     fi
-    
+
     if [[ "$CTID" =~ ^[0-9]+$ ]] && [ "$CTID" -ge 100 ] && [ "$CTID" -le 999 ]; then
         if pct list | grep -q "^$CTID "; then
             if whiptail --backtitle "Finance Assistant Installation" --title "Container Exists" --yesno "Container $CTID already exists. Remove it?" 8 50; then
@@ -122,7 +128,12 @@ if [ $? -ne 0 ]; then
 fi
 
 # Get storage
-STORAGE_OPTIONS=$(pvesm status | grep -E "(local|local-lvm)" | awk '{print $1}' | tr '\n' ' ')
+STORAGE_LIST=$(pvesm status | grep -E "(local-lvm|local)" | awk '{print $1}')
+STORAGE_OPTIONS=""
+for storage in $STORAGE_LIST; do
+    STORAGE_OPTIONS="$STORAGE_OPTIONS $storage $storage"
+done
+
 STORAGE=$(whiptail --backtitle "Finance Assistant Installation" --title "Storage" --menu "Select storage:" 12 50 5 $STORAGE_OPTIONS 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then
     msg_info "Installation cancelled."
@@ -203,7 +214,8 @@ pct create $CTID $TEMPLATE \
     --rootfs $STORAGE:$DISK_SIZE \
     --net0 name=eth0,bridge=vmbr0,ip=$IP/24,gw=$GATEWAY \
     --unprivileged 0 \
-    --features nesting=1
+    --features nesting=1 \
+    --onboot 1
 
 msg_ok "Container created successfully!"
 
@@ -366,4 +378,4 @@ Finance Assistant is now running! 🚀"
 whiptail --backtitle "Finance Assistant Installation" \
     --title "Installation Complete" \
     --msgbox "$COMPLETION_TEXT" \
-    20 70 
+    20 70
