@@ -12,7 +12,7 @@ var_ram="${var_ram:-2048}"
 var_disk="${var_disk:-8}"
 var_os="${var_os:-debian}"
 var_version="${var_version:-12}"
-var_unprivileged="${var_unprivileged:-0}"
+var_unprivileged="${var_unprivileged:-1}"
 
 header_info "$APP"
 variables
@@ -61,9 +61,9 @@ function description() {
 # Custom installation function that runs inside the container
 function install_finance_assistant() {
   local CTID=$1
-  
+
   msg_info "Installing Finance Assistant inside container $CTID..."
-  
+
   # Create the installation script content
   local INSTALL_SCRIPT='#!/bin/bash
 
@@ -230,7 +230,7 @@ msg_info "Access your Finance Assistant at: http://$(hostname -I | awk "{print \
 function build_container() {
   # Call the original build_container function
   source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
-  
+
   # After container is built and started, install Finance Assistant
   if [[ -n "$CTID" ]]; then
     install_finance_assistant $CTID
