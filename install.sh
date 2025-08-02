@@ -1,110 +1,220 @@
 #!/bin/bash
+
+# Finance Assistant - Single Command Installation Script
+# Usage: bash -c "$(curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/install.sh)"
+
 set -e
 
-# Finance Assistant Installation Script
-# Simple one-step installation for Proxmox LXC containers
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
 
-echo "🚀 Finance Assistant Installation Script"
-echo "========================================"
-echo ""
+# Function to print colored output
+print_status() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
-    echo "❌ This script must be run as root"
-    exit 1
+   print_error "This script must be run as root"
+   exit 1
 fi
 
-# Check if Proxmox is installed
-if ! command -v pct &> /dev/null; then
-    echo "❌ Proxmox Container Toolkit (pct) not found. This script must be run on a Proxmox host."
-    exit 1
-fi
-
-# Default values
+# Configuration
 CTID=113
-HOSTNAME="financeassistant"
-IP="192.168.1.150"
-GATEWAY="192.168.1.1"
-STORAGE="local-lvm"
-CORES=2
-MEMORY=2048
-SWAP=2048
-DISK_SIZE=20
+CT_NAME="financeassistant"
+CT_PASSWORD="finance123"
+CT_STORAGE="local-lvm"
+CT_CORES=2
+CT_MEMORY=2048
+CT_DISK_SIZE=8
+CT_IP="192.168.1.113/24"
+CT_GATEWAY="192.168.1.1"
 
-echo "📋 Configuration:"
-echo "  Container ID: $CTID"
-echo "  Hostname: $HOSTNAME"
-echo "  IP Address: $IP"
-echo "  Gateway: $GATEWAY"
-echo "  Storage: $STORAGE"
-echo "  CPU Cores: $CORES"
-echo "  Memory: ${MEMORY}MB"
-echo "  Swap: ${SWAP}MB"
-echo "  Disk Size: ${DISK_SIZE}GB"
-echo ""
+print_status "Starting Finance Assistant installation..."
 
-read -p "Proceed with installation? (y/N): " confirm
-if [[ ! $confirm =~ ^[Yy]$ ]]; then
-    echo "Installation cancelled."
-    exit 0
+# Check if container already exists
+if pct list | grep -q "$CTID"; then
+    print_warning "Container $CTID already exists. Removing it..."
+    pct stop $CTID 2>/dev/null || true
+    pct destroy $CTID
 fi
 
-echo "🔧 Creating LXC container..."
+# Create container
+print_status "Creating LXC container..."
+pct create $CTID local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst \
+    --hostname $CT_NAME \
+    --password $CT_PASSWORD \
+    --storage $CT_STORAGE \
+    --cores $CT_CORES \
+    --memory $CT_MEMORY \
+    --rootfs $CT_STORAGE:$CT_DISK_SIZE \
+    --net0 name=eth0,bridge=vmbr0,ip=$CT_IP,gw=$CT_GATEWAY \
+    --unprivileged 0 \
+    --features nesting=1
 
-# Create the container
-pct create $CTID local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst \
-    --hostname $HOSTNAME \
-    --memory $MEMORY \
-    --swap $SWAP \
-    --cores $CORES \
-    --rootfs $STORAGE:$DISK_SIZE \
-    --net0 name=eth0,bridge=vmbr0,ip=$IP/24,gw=$GATEWAY \
-    --features nesting=1 \
-    --unprivileged 1 \
-    --start 1
+# Start container
+print_status "Starting container..."
+pct start $CTID
 
-echo "✅ Container created and started!"
+# Wait for container to be ready
+print_status "Waiting for container to be ready..."
+sleep 10
 
-echo "⏳ Waiting for container to be ready..."
-sleep 15
+# Install Finance Assistant
+print_status "Installing Finance Assistant..."
+pct exec $CTID -- bash -c "
+set -e
 
-echo "📦 Installing dependencies..."
+# Update system
+apt update && apt upgrade -y
 
 # Install dependencies
-pct exec $CTID -- bash -c "
-    apt update && apt upgrade -y
-    apt install -y curl wget git python3 python3-pip python3-venv nginx nodejs npm supervisor sqlite3
+apt install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx
+
+# Create finance user
+useradd -m -s /bin/bash finance || true
+
+# Clone repository
+cd /opt
+git clone https://github.com/chbarnhouse/finance-assistant.git || true
+cd finance-assistant
+
+# Set up Python environment
+cd /opt/finance-assistant
+python3 -m venv venv
+/opt/finance-assistant/venv/bin/pip install --upgrade pip
+/opt/finance-assistant/venv/bin/pip install \"gunicorn<21.0\" django djangorestframework django-cors-headers django-filter requests
+
+# Build frontend
+cd /opt/finance-assistant/frontend
+npm install
+npm run build
+
+# Create data directory
+mkdir -p /data
+chown finance:finance /data
+
+# Initialize Django
+cd /opt/finance-assistant/backend
+
+# Remove problematic migration if it exists
+if [ -f \"ynab/migrations/0002_add_import_id_to_transaction.py\" ]; then
+    rm ynab/migrations/0002_add_import_id_to_transaction.py
+fi
+
+/opt/finance-assistant/venv/bin/python manage.py migrate
+/opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
+/opt/finance-assistant/venv/bin/python populate_data.py
+
+# Create systemd service
+cat > /etc/systemd/system/finance-assistant.service << 'EOF'
+[Unit]
+Description=Finance Assistant
+After=network.target
+
+[Service]
+Type=notify
+User=finance
+Group=finance
+WorkingDirectory=/opt/finance-assistant/backend
+Environment=PATH=/opt/finance-assistant/venv/bin
+Environment=DATABASE_PATH=/data/finance_assistant.db
+ExecStart=/opt/finance-assistant/venv/bin/gunicorn finance_assistant.wsgi:application --bind 127.0.0.1:8000 --workers 3
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Configure Nginx
+cat > /etc/nginx/sites-available/finance-assistant << 'EOF'
+server {
+    listen 8080 default_server;
+    server_name _;
+
+    # Security headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection \"1; mode=block\";
+
+    # Static files
+    location /static/ {
+        alias /opt/finance-assistant/backend/static/;
+        expires 1y;
+        add_header Cache-Control \"public, immutable\";
+    }
+
+    # API endpoints
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Welcome page
+    location / {
+        return 200 \"Finance Assistant is Running! Backend API is operational. Visit /api/ for endpoints.\";
+        add_header Content-Type text/plain;
+    }
+}
+EOF
+
+# Enable services
+rm -f /etc/nginx/sites-enabled/default
+ln -s /etc/nginx/sites-available/finance-assistant /etc/nginx/sites-enabled/
+systemctl daemon-reload
+systemctl enable finance-assistant
+systemctl start finance-assistant
+systemctl enable nginx
+systemctl start nginx
+
+# Configure firewall
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow 8080/tcp
+    ufw --force enable
+fi
 "
 
-echo "🚀 Deploying Finance Assistant..."
+# Configure port forwarding on host
+print_status "Configuring port forwarding..."
+CONTAINER_IP=$(pct exec $CTID ip route get 1 | awk '{print $7;exit}')
 
-# Deploy Finance Assistant
-pct exec $CTID -- bash -c "
-    curl -fsSL https://raw.githubusercontent.com/chbarnhouse/finance-assistant/main/deploy-lxc.sh | bash
-"
+# Add iptables rules for port forwarding
+iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination $CONTAINER_IP:8080
+iptables -A FORWARD -p tcp -d $CONTAINER_IP --dport 8080 -j ACCEPT
 
-echo ""
-echo "========================================"
-echo "✅ Finance Assistant Installation Complete!"
-echo "========================================"
-echo ""
-echo "🌐 Access your Finance Assistant at:"
-echo "   http://$IP:8080"
-echo ""
-echo "🔐 Default credentials:"
-echo "   Username: admin"
-echo "   Password: password"
-echo ""
-echo "⚠️  IMPORTANT: Change the default password after first login!"
-echo ""
-echo "📊 Container Management:"
-echo "   View logs: pct exec $CTID -- journalctl -u finance-assistant -f"
-echo "   Stop container: pct stop $CTID"
-echo "   Start container: pct start $CTID"
-echo "   Access console: pct enter $CTID"
-echo ""
-echo "🔧 Configuration:"
-echo "   Edit environment: pct exec $CTID -- nano /opt/finance-assistant/.env"
-echo "   View logs: pct exec $CTID -- tail -f /opt/finance-assistant/logs/*.log"
-echo ""
-echo "🎉 Enjoy your Finance Assistant!"
+# Save iptables rules
+if [ -d "/etc/iptables" ]; then
+    iptables-save > /etc/iptables/rules.v4
+fi
+
+print_success "Installation completed successfully!"
+echo
+echo "🌐 Access your Finance Assistant at: http://192.168.1.150:8080"
+echo "📊 API Endpoints: http://192.168.1.150:8080/api/"
+echo
+echo "Container Management:"
+echo "  Start:  pct start $CTID"
+echo "  Stop:   pct stop $CTID"
+echo "  Shell:  pct enter $CTID"
+echo "  Status: pct status $CTID"
+echo
+print_success "Finance Assistant is now running! 🚀"
