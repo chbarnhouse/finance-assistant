@@ -310,6 +310,28 @@ EOF
               ufw allow 8080/tcp
               ufw --force enable
           fi
+
+        # Configure port forwarding for LXC container
+        # This allows external access to the container's port 8080
+        echo '#!/bin/bash
+# Port forwarding script for Finance Assistant
+# Forward host port 8080 to container port 8080
+
+# Get container IP
+CONTAINER_IP=$(pct exec $CTID ip route get 1 | awk "{print \$7;exit}")
+
+# Add iptables rules for port forwarding
+iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination $CONTAINER_IP:8080
+iptables -A FORWARD -p tcp -d $CONTAINER_IP --dport 8080 -j ACCEPT
+
+# Save iptables rules
+iptables-save > /etc/iptables/rules.v4
+
+echo "Port forwarding configured: Host port 8080 -> Container $CONTAINER_IP:8080"
+' > /root/finance-assistant-port-forward.sh
+
+        chmod +x /root/finance-assistant-port-forward.sh
+        /root/finance-assistant-port-forward.sh
     "
 }
 
