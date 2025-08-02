@@ -58,17 +58,16 @@ function description() {
   msg_info "It provides a modern web interface with powerful financial insights."
 }
 
-# Override the build_container function to use our embedded installation
-function build_container() {
-  # Call the original build_container function from the framework
-  source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
+start
+build_container
+description
+
+# After the container is built and started, install Finance Assistant
+if [[ -n "$CTID" ]]; then
+  msg_info "Installing Finance Assistant inside container $CTID..."
   
-  # After the container is built and started, install Finance Assistant using our embedded script
-  if [[ -n "$CTID" ]]; then
-    msg_info "Installing Finance Assistant inside container $CTID..."
-    
-    # Create the installation script content
-    INSTALL_SCRIPT='#!/bin/bash
+  # Create the installation script content
+  INSTALL_SCRIPT='#!/bin/bash
 
 set -e
 
@@ -225,14 +224,9 @@ msg_ok "Finance Assistant installation completed successfully!"
 msg_info "Access your Finance Assistant at: http://$(hostname -I | awk "{print \$1}"):8080"
 '
 
-    # Execute the installation script inside the container
-    pct exec $CTID -- bash -c "$INSTALL_SCRIPT"
-  fi
-}
-
-start
-build_container
-description
+  # Execute the installation script inside the container
+  pct exec $CTID -- bash -c "$INSTALL_SCRIPT"
+fi
 
 msg_ok "Completed Successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
