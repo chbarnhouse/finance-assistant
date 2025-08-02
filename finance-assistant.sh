@@ -61,6 +61,14 @@ if ! command -v whiptail &> /dev/null; then
     exit 1
 fi
 
+# Check if we're in an interactive environment
+if [ ! -t 0 ] || [ -z "$TERM" ]; then
+    msg_error "This script requires an interactive terminal with GUI support."
+    msg_error "Please run this script from a proper terminal, not from the Proxmox web shell."
+    msg_error "You can run it via SSH or from the Proxmox host console."
+    exit 1
+fi
+
 # Default values
 CTID=113
 HOSTNAME="financeassistant"
@@ -183,24 +191,45 @@ fi
 # Start installation
 msg_info "Starting Finance Assistant installation..."
 
-# Detect available templates
-msg_info "Detecting available templates..."
+# Check and download template
+msg_info "Checking for available templates..."
 TEMPLATE=""
+TEMPLATE_NAME=""
+
+# Check what templates are actually available
+AVAILABLE_TEMPLATES=$(pveam available | grep -E "(debian|ubuntu)" | head -10)
+msg_info "Available templates:"
+echo "$AVAILABLE_TEMPLATES"
+
+# Try to find a suitable template
 if pveam list local | grep -q "debian-12"; then
     TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+    TEMPLATE_NAME="debian-12-standard_12.2-1_amd64.tar.zst"
 elif pveam list local | grep -q "debian-11"; then
     TEMPLATE="local:vztmpl/debian-11-standard_11.7-1_amd64.tar.zst"
+    TEMPLATE_NAME="debian-11-standard_11.7-1_amd64.tar.zst"
 elif pveam list local | grep -q "ubuntu-22.04"; then
     TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+    TEMPLATE_NAME="ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
 elif pveam list local | grep -q "ubuntu-20.04"; then
     TEMPLATE="local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.zst"
+    TEMPLATE_NAME="ubuntu-20.04-standard_20.04-1_amd64.tar.zst"
 else
-    msg_info "No suitable template found. Downloading Debian 12..."
+    msg_info "No suitable template found locally. Downloading Debian 12..."
     pveam download local debian-12-standard_12.2-1_amd64.tar.zst
     TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+    TEMPLATE_NAME="debian-12-standard_12.2-1_amd64.tar.zst"
 fi
 
 msg_info "Using template: $TEMPLATE"
+
+# Verify template exists
+if [ ! -f "/var/lib/vz/template/cache/$TEMPLATE_NAME" ]; then
+    msg_error "Template file not found: $TEMPLATE_NAME"
+    msg_info "Available local templates:"
+    pveam list local
+    exit 1
+fi
 
 # Create container
 msg_info "Creating LXC container..."
