@@ -55,9 +55,34 @@ if pct list | grep -q "$CTID"; then
     pct destroy $CTID
 fi
 
+# Detect available templates
+print_status "Detecting available templates..."
+AVAILABLE_TEMPLATES=$(pveam available | grep -E "(debian|ubuntu)" | head -5)
+print_status "Available templates:"
+echo "$AVAILABLE_TEMPLATES"
+
+# Try to find a suitable template
+TEMPLATE=""
+if pveam list local | grep -q "debian-12"; then
+    TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+elif pveam list local | grep -q "debian-11"; then
+    TEMPLATE="local:vztmpl/debian-11-standard_11.7-1_amd64.tar.zst"
+elif pveam list local | grep -q "ubuntu-22.04"; then
+    TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+elif pveam list local | grep -q "ubuntu-20.04"; then
+    TEMPLATE="local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.zst"
+else
+    # Download a template if none available
+    print_status "No suitable template found. Downloading Debian 12..."
+    pveam download local debian-12-standard_12.2-1_amd64.tar.zst
+    TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
+fi
+
+print_status "Using template: $TEMPLATE"
+
 # Create container
 print_status "Creating LXC container..."
-pct create $CTID local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst \
+pct create $CTID $TEMPLATE \
     --hostname $CT_NAME \
     --password $CT_PASSWORD \
     --storage $CT_STORAGE \
