@@ -55,6 +55,12 @@ if ! command -v pct &> /dev/null; then
     exit 1
 fi
 
+# Check if whiptail is available
+if ! command -v whiptail &> /dev/null; then
+    msg_error "whiptail is required but not installed. Please install it first."
+    exit 1
+fi
+
 # Default values
 CTID=113
 HOSTNAME="financeassistant"
@@ -69,36 +75,103 @@ DISK_SIZE=8
 # Show header
 header_info
 
-msg_info "Finance Assistant Installation"
-msg_info "=============================="
-echo
-msg_info "This script will install Finance Assistant in an LXC container."
-echo
-msg_info "Default Configuration:"
-msg_info "  Container ID: $CTID"
-msg_info "  Name: $HOSTNAME"
-msg_info "  IP: $IP"
-msg_info "  Gateway: $GATEWAY"
-msg_info "  Storage: $STORAGE"
-msg_info "  CPU Cores: $CORES"
-msg_info "  Memory: ${MEMORY}MB"
-msg_info "  Disk Size: ${DISK_SIZE}GB"
-echo
-
-# Check if container already exists
-if pct list | grep -q "^$CTID "; then
-    msg_warn "Container $CTID already exists!"
-    read -p "Remove existing container? (y/N): " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        msg_info "Removing existing container $CTID..."
-        pct stop $CTID 2>/dev/null || true
-        pct destroy $CTID
-        msg_ok "Container removed."
-    else
+# Get container ID
+while true; do
+    CTID=$(whiptail --backtitle "Finance Assistant Installation" --title "Container ID" --inputbox "Enter container ID (100-999):" 8 50 "$CTID" 3>&1 1>&2 2>&3)
+    
+    if [ $? -ne 0 ]; then
         msg_info "Installation cancelled."
         exit 0
     fi
+    
+    if [[ "$CTID" =~ ^[0-9]+$ ]] && [ "$CTID" -ge 100 ] && [ "$CTID" -le 999 ]; then
+        if pct list | grep -q "^$CTID "; then
+            if whiptail --backtitle "Finance Assistant Installation" --title "Container Exists" --yesno "Container $CTID already exists. Remove it?" 8 50; then
+                msg_info "Removing existing container $CTID..."
+                pct stop $CTID 2>/dev/null || true
+                pct destroy $CTID
+                break
+            fi
+        else
+            break
+        fi
+    else
+        whiptail --backtitle "Finance Assistant Installation" --title "Invalid ID" --msgbox "Please enter a valid ID between 100-999" 8 50
+    fi
+done
+
+# Get container name
+HOSTNAME=$(whiptail --backtitle "Finance Assistant Installation" --title "Container Name" --inputbox "Enter container name:" 8 50 "$HOSTNAME" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get IP address
+IP=$(whiptail --backtitle "Finance Assistant Installation" --title "IP Address" --inputbox "Enter IP address (without /24):" 8 50 "$IP" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get gateway
+GATEWAY=$(whiptail --backtitle "Finance Assistant Installation" --title "Gateway" --inputbox "Enter gateway IP:" 8 50 "$GATEWAY" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get storage
+STORAGE_LIST=$(pvesm status | grep -E "(local-lvm|local)" | awk '{print $1}')
+STORAGE_OPTIONS=""
+for storage in $STORAGE_LIST; do
+    STORAGE_OPTIONS="$STORAGE_OPTIONS $storage $storage"
+done
+
+STORAGE=$(whiptail --backtitle "Finance Assistant Installation" --title "Storage" --menu "Select storage:" 12 50 5 $STORAGE_OPTIONS 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get CPU cores
+CORES=$(whiptail --backtitle "Finance Assistant Installation" --title "CPU Cores" --inputbox "Number of CPU cores:" 8 50 "$CORES" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get memory
+MEMORY=$(whiptail --backtitle "Finance Assistant Installation" --title "Memory" --inputbox "Memory (MB):" 8 50 "$MEMORY" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Get disk size
+DISK_SIZE=$(whiptail --backtitle "Finance Assistant Installation" --title "Disk Size" --inputbox "Disk size (GB):" 8 50 "$DISK_SIZE" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then
+    msg_info "Installation cancelled."
+    exit 0
+fi
+
+# Show configuration summary
+CONFIG_TEXT="Configuration Summary:
+
+Container ID: $CTID
+Name: $HOSTNAME
+IP Address: $IP
+Gateway: $GATEWAY
+Storage: $STORAGE
+CPU Cores: $CORES
+Memory: ${MEMORY}MB
+Disk Size: ${DISK_SIZE}GB
+
+Proceed with installation?"
+
+if ! whiptail --backtitle "Finance Assistant Installation" --title "Configuration Summary" --yesno "$CONFIG_TEXT" 15 60; then
+    msg_info "Installation cancelled."
+    exit 0
 fi
 
 # Check available storage
@@ -115,35 +188,34 @@ msg_info "Using storage: $STORAGE"
 
 # Check and download template
 msg_info "Checking for available templates..."
+
+# Get the actual template name from local storage
+LOCAL_TEMPLATES=$(pveam list local | grep -E "(debian|ubuntu)" | head -5)
+msg_info "Available local templates:"
+echo "$LOCAL_TEMPLATES"
+
+# Find the best available template
 TEMPLATE=""
 TEMPLATE_NAME=""
 
-# List available templates
-msg_info "Available templates:"
-pveam available | grep -E "(debian|ubuntu)" | head -10
-
-# Check local templates
-msg_info "Local templates:"
-pveam list local
-
-# Try to find a suitable template
-if pveam list local | grep -q "debian-12"; then
-    TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
-    TEMPLATE_NAME="debian-12-standard_12.2-1_amd64.tar.zst"
-elif pveam list local | grep -q "debian-11"; then
-    TEMPLATE="local:vztmpl/debian-11-standard_11.7-1_amd64.tar.zst"
-    TEMPLATE_NAME="debian-11-standard_11.7-1_amd64.tar.zst"
-elif pveam list local | grep -q "ubuntu-22.04"; then
-    TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
-    TEMPLATE_NAME="ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
-elif pveam list local | grep -q "ubuntu-20.04"; then
-    TEMPLATE="local:vztmpl/ubuntu-20.04-standard_20.04-1_amd64.tar.zst"
-    TEMPLATE_NAME="ubuntu-20.04-standard_20.04-1_amd64.tar.zst"
+if echo "$LOCAL_TEMPLATES" | grep -q "debian-12"; then
+    # Get the exact debian-12 template name
+    TEMPLATE_NAME=$(echo "$LOCAL_TEMPLATES" | grep "debian-12" | awk '{print $1}' | sed 's/local:vztmpl\///')
+    TEMPLATE="local:vztmpl/$TEMPLATE_NAME"
+elif echo "$LOCAL_TEMPLATES" | grep -q "debian-11"; then
+    TEMPLATE_NAME=$(echo "$LOCAL_TEMPLATES" | grep "debian-11" | awk '{print $1}' | sed 's/local:vztmpl\///')
+    TEMPLATE="local:vztmpl/$TEMPLATE_NAME"
+elif echo "$LOCAL_TEMPLATES" | grep -q "ubuntu-24.04"; then
+    TEMPLATE_NAME=$(echo "$LOCAL_TEMPLATES" | grep "ubuntu-24.04" | awk '{print $1}' | sed 's/local:vztmpl\///')
+    TEMPLATE="local:vztmpl/$TEMPLATE_NAME"
+elif echo "$LOCAL_TEMPLATES" | grep -q "ubuntu-22.04"; then
+    TEMPLATE_NAME=$(echo "$LOCAL_TEMPLATES" | grep "ubuntu-22.04" | awk '{print $1}' | sed 's/local:vztmpl\///')
+    TEMPLATE="local:vztmpl/$TEMPLATE_NAME"
 else
     msg_info "No suitable template found locally. Downloading Debian 12..."
-    pveam download local debian-12-standard_12.2-1_amd64.tar.zst
-    TEMPLATE="local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst"
-    TEMPLATE_NAME="debian-12-standard_12.2-1_amd64.tar.zst"
+    pveam download local debian-12-standard_12.7-1_amd64.tar.zst
+    TEMPLATE="local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
+    TEMPLATE_NAME="debian-12-standard_12.7-1_amd64.tar.zst"
 fi
 
 msg_info "Using template: $TEMPLATE"
@@ -158,14 +230,7 @@ fi
 
 msg_ok "Template verified successfully!"
 
-# Confirm installation
-echo
-read -p "Proceed with installation? (Y/n): " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Nn]$ ]]; then
-    msg_info "Installation cancelled."
-    exit 0
-fi
+
 
 # Start installation
 msg_info "Starting Finance Assistant installation..."
@@ -328,16 +393,22 @@ fi
 msg_ok "Installation completed successfully!"
 
 # Show completion message
-echo
-msg_ok "🎉 Finance Assistant Installation Complete!"
-echo
-msg_info "Access your Finance Assistant at:"
-msg_info "  http://$IP:8080"
-echo
-msg_info "Container Management:"
-msg_info "  Start:  pct start $CTID"
-msg_info "  Stop:   pct stop $CTID"
-msg_info "  Shell:  pct enter $CTID"
-msg_info "  Status: pct status $CTID"
-echo
-msg_info "Finance Assistant is now running! 🚀"
+COMPLETION_TEXT="Installation Complete!
+
+Finance Assistant has been successfully installed.
+
+Access your Finance Assistant at:
+http://$IP:8080
+
+Container Management:
+Start:  pct start $CTID
+Stop:   pct stop $CTID
+Shell:  pct enter $CTID
+Status: pct status $CTID
+
+Finance Assistant is now running! 🚀"
+
+whiptail --backtitle "Finance Assistant Installation" \
+    --title "Installation Complete" \
+    --msgbox "$COMPLETION_TEXT" \
+    20 70
