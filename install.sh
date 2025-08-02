@@ -58,14 +58,16 @@ function description() {
   msg_info "It provides a modern web interface with powerful financial insights."
 }
 
-# Custom installation function that runs inside the container
-function install_finance_assistant() {
-  local CTID=$1
+start
+build_container
+description
 
+# After the container is built, install Finance Assistant
+if [[ -n "$CTID" ]]; then
   msg_info "Installing Finance Assistant inside container $CTID..."
-
+  
   # Create the installation script content
-  local INSTALL_SCRIPT='#!/bin/bash
+  INSTALL_SCRIPT='#!/bin/bash
 
 set -e
 
@@ -224,22 +226,7 @@ msg_info "Access your Finance Assistant at: http://$(hostname -I | awk "{print \
 
   # Execute the installation script inside the container
   pct exec $CTID -- bash -c "$INSTALL_SCRIPT"
-}
-
-# Override the build_container function to use our custom installation
-function build_container() {
-  # Call the original build_container function
-  source <(curl -fsSL https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main/misc/build.func)
-
-  # After container is built and started, install Finance Assistant
-  if [[ -n "$CTID" ]]; then
-    install_finance_assistant $CTID
-  fi
-}
-
-start
-build_container
-description
+fi
 
 msg_ok "Completed Successfully!\n"
 echo -e "${CREATING}${GN}${APP} setup has been successfully initialized!${CL}"
