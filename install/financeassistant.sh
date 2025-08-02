@@ -1,16 +1,15 @@
 #!/bin/bash
-
 # Finance Assistant Installation Script
-# This script runs inside the LXC container
+# This script is downloaded and executed inside the LXC container by the community framework
 
 set -e
 
 # Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+RED="\033[0;31m"
+GREEN="\033[0;32m"
+YELLOW="\033[1;33m"
+BLUE="\033[0;34m"
+NC="\033[0m"
 
 # Functions
 msg_info() {
@@ -82,7 +81,7 @@ fi
 
 # Create systemd service
 msg_info "Creating systemd service..."
-cat > /etc/systemd/system/finance-assistant.service << 'EOF'
+cat > /etc/systemd/system/finance-assistant.service << "EOF"
 [Unit]
 Description=Finance Assistant
 After=network.target
@@ -103,7 +102,7 @@ EOF
 
 # Configure Nginx
 msg_info "Configuring Nginx..."
-cat > /etc/nginx/sites-available/finance-assistant << 'EOF'
+cat > /etc/nginx/sites-available/finance-assistant << "EOF"
 server {
     listen 8080 default_server;
     server_name _;
