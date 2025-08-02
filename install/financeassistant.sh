@@ -1,15 +1,15 @@
 #!/bin/bash
 # Finance Assistant Installation Script
-# This script is downloaded and executed inside the LXC container by the community framework
+# This script is executed inside the LXC container by the community framework
 
 set -e
 
 # Colors
-RED="\033[0;31m"
-GREEN="\033[0;32m"
-YELLOW="\033[1;33m"
-BLUE="\033[0;34m"
-NC="\033[0m"
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
 # Functions
 msg_info() {
@@ -154,4 +154,4 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 
 msg_ok "Finance Assistant installation completed successfully!"
-msg_info "Access your Finance Assistant at: http://$(hostname -I | awk '{print $1}'):8080" 
+msg_info "Access your Finance Assistant at: http://$(hostname -I | awk '{print $1}'):8080"
