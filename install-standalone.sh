@@ -200,4 +200,4 @@ echo -e "  Stop:   ${YELLOW}pct stop $CTID${NC}"
 echo -e "  Shell:  ${YELLOW}pct enter $CTID${NC}"
 echo -e "  Status: ${YELLOW}pct status $CTID${NC}"
 echo
-echo -e "${GREEN}Finance Assistant is now running! 🚀${NC}" 
+echo -e "${GREEN}Finance Assistant is now running! 🚀${NC}"

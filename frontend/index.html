@@ -1,10 +1,39 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/finance-assistant.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
+    <title>Finance Assistant</title>
+    <script>
+      // Aggressive polyfill for crypto.randomUUID - Execute immediately
+      (function () {
+        // Create window.crypto if it doesn't exist
+        if (typeof window !== "undefined") {
+          if (!window.crypto) {
+            window.crypto = {};
+          }
+
+          // Always override randomUUID to ensure it exists
+          window.crypto.randomUUID = function () {
+            return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(
+              /[xy]/g,
+              function (c) {
+                const r = (Math.random() * 16) | 0;
+                const v = c === "x" ? r : (r & 0x3) | 0x8;
+                return v.toString(16);
+              }
+            );
+          };
+
+          // Also add to global scope as fallback
+          if (typeof global !== "undefined") {
+            global.crypto = global.crypto || {};
+            global.crypto.randomUUID = window.crypto.randomUUID;
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

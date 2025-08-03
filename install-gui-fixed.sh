@@ -68,7 +68,7 @@ check_root() {
 # Function to check storage
 check_storage() {
     echo -e "${INFO} Checking storage availability...${NC}"
-    
+
     # Check if storage pool exists
     if ! pvesm status | grep -q "$STORAGE"; then
         echo -e "${CROSS} Storage pool '$STORAGE' not found${NC}"
@@ -76,7 +76,7 @@ check_storage() {
         pvesm status | grep -v "local" | awk '{print "  " $1}'
         exit 1
     fi
-    
+
     # Get available space
     AVAILABLE=$(pvesm status | grep "$STORAGE" | awk '{print $3}' | sed 's/G//')
     if [[ $AVAILABLE -lt $DISK_SIZE ]]; then
@@ -88,7 +88,7 @@ check_storage() {
             exit 1
         fi
     fi
-    
+
     echo -e "${CHECK} Storage validation passed${NC}"
 }
 
@@ -102,7 +102,7 @@ check_ctid() {
             echo -e "${CROSS} Installation cancelled${NC}"
             exit 1
         fi
-        
+
         # Find next available CTID
         CTID=$(pct list | awk 'NR>1 {print $1}' | sort -n | tail -1 | awk '{print $1+1}')
         echo -e "${INFO} Using Container ID: $CTID${NC}"
@@ -122,7 +122,7 @@ confirm_installation() {
 # Function to create container
 create_container() {
     echo -e "${INFO} Creating LXC container...${NC}"
-    
+
     pct create $CTID local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst \
         --hostname $HOSTNAME \
         --memory $MEMORY \
@@ -132,7 +132,7 @@ create_container() {
         --unprivileged 0 \
         --features nesting=1 \
         --tags $TAGS
-    
+
     echo -e "${CHECK} Container created successfully${NC}"
 }
 
@@ -141,7 +141,7 @@ start_container() {
     echo -e "${INFO} Starting container...${NC}"
     pct start $CTID
     sleep 10
-    
+
     # Wait for network
     echo -e "${INFO} Waiting for network...${NC}"
     for i in {1..30}; do
@@ -151,28 +151,28 @@ start_container() {
         fi
         sleep 2
     done
-    
+
     echo -e "${CHECK} Container started successfully${NC}"
 }
 
 # Function to install Finance Assistant
 install_finance_assistant() {
     echo -e "${INFO} Installing Finance Assistant...${NC}"
-    
+
     pct exec $CTID -- bash -c "
         # Update system
         apt update && apt upgrade -y
-        
+
         # Install dependencies
         apt install -y curl wget git python3 python3-pip python3-venv nodejs npm nginx supervisor
-        
+
         # Create finance user
         useradd -m -s /bin/bash finance
-        
+
         # Create application directory
         mkdir -p /opt/finance-assistant
         chown finance:finance /opt/finance-assistant
-        
+
         # Clone repository
         cd /opt/finance-assistant
         git clone https://github.com/chbarnhouse/finance-assistant.git temp
@@ -180,24 +180,24 @@ install_finance_assistant() {
         cp -r temp/frontend ./
         rm -rf temp
         chown -R finance:finance /opt/finance-assistant
-        
+
         # Set up Python environment
         cd /opt/finance-assistant
         sudo -u finance python3 -m venv venv
         sudo -u finance /opt/finance-assistant/venv/bin/pip install --upgrade pip
         sudo -u finance /opt/finance-assistant/venv/bin/pip install gunicorn django djangorestframework django-cors-headers django-filter
-        
+
         # Build frontend
         cd /opt/finance-assistant/frontend
         sudo -u finance npm install
         sudo -u finance npm run build
-        
+
         # Initialize Django
         cd /opt/finance-assistant/backend
         sudo -u finance /opt/finance-assistant/venv/bin/python manage.py migrate
         sudo -u finance /opt/finance-assistant/venv/bin/python manage.py collectstatic --no-input
         sudo -u finance /opt/finance-assistant/venv/bin/python populate_data.py
-        
+
         # Create systemd service
         cat > /etc/systemd/system/finance-assistant.service << 'EOF'
 [Unit]
@@ -268,12 +268,12 @@ EOF
         systemctl start finance-assistant
         systemctl enable nginx
         systemctl start nginx
-        
+
         # Configure firewall
         ufw allow 8080/tcp
         ufw --force enable
     "
-    
+
     echo -e "${CHECK} Finance Assistant installed successfully${NC}"
 }
 
@@ -304,7 +304,7 @@ main() {
     check_storage
     check_ctid
     confirm_installation
-    
+
     create_container
     start_container
     install_finance_assistant
@@ -312,4 +312,4 @@ main() {
 }
 
 # Run main function
-main "$@" 
+main "$@"

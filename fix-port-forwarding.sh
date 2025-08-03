@@ -31,4 +31,4 @@ else
 fi
 
 echo "✅ Port forwarding configured: Host port 8080 -> Container $CONTAINER_IP:8080"
-echo "🌐 You should now be able to access Finance Assistant at: http://192.168.1.150:8080" 
+echo "🌐 You should now be able to access Finance Assistant at: http://192.168.1.150:8080"

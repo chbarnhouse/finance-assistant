@@ -10,7 +10,11 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      crypto: "crypto-browserify",
     },
+  },
+  define: {
+    global: "globalThis",
   },
   build: {
     rollupOptions: {
